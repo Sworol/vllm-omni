@@ -89,7 +89,7 @@ def test_4d_masked_fallback_matches_reference(blocks):
 
 
 def test_4d_masked_fallback_with_key_padding():
-    """The same mask ANDed with a 2D key-validity mask (the #8830 shape)."""
+    """The same mask combined with a 2D key-validity mask (the #8830 shape)."""
     torch.manual_seed(1)
     b, sq, h, dh = 2, 6, 4, 8
     q = torch.randn(b, sq, h, dh, dtype=torch.float64)
@@ -158,7 +158,12 @@ def test_forward_cuda_keeps_2d_mask_on_varlen_path(monkeypatch):
 
     impl = _make_impl()
     calls = []
-    impl._forward_varlen_masked = lambda query, key, value, attention_mask: (calls.append(attention_mask.ndim) or query)
+
+    def _fake_varlen(query, key, value, attention_mask):
+        calls.append(attention_mask.ndim)
+        return query
+
+    impl._forward_varlen_masked = _fake_varlen
     out = impl.forward_cuda(
         q,
         k,
