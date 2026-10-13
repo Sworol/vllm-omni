@@ -14,11 +14,10 @@ masked attention over the same 4D block-causal mask.
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import pytest
 import torch
 
+from vllm_omni.diffusion.attention.backends.abstract import AttentionMetadata
 from vllm_omni.diffusion.attention.backends.flash_attn import FlashAttentionImpl
 from vllm_omni.diffusion.attention.backends.utils import fa  # noqa: F401  (import side-effects on CPU)
 
@@ -137,7 +136,7 @@ def test_forward_cuda_dispatches_4d_mask_to_sdpa(monkeypatch):
         q,
         k,
         v,
-        SimpleNamespace(attn_mask=mask, full_attn_spans=None, extra={"attention_mask_mode": "arbitrary"}),
+        AttentionMetadata(attn_mask=mask, full_attn_spans=None, extra={"attention_mask_mode": "arbitrary"}),
     )
     ref = _reference_attn(q, k, v, mask, impl.softmax_scale)
     assert out.shape == q.shape
@@ -164,7 +163,7 @@ def test_forward_cuda_keeps_2d_mask_on_varlen_path(monkeypatch):
         q,
         k,
         v,
-        SimpleNamespace(attn_mask=mask2d, full_attn_spans=None, extra={"attention_mask_mode": "arbitrary"}),
+        AttentionMetadata(attn_mask=mask2d, full_attn_spans=None, extra={"attention_mask_mode": "arbitrary"}),
     )
     assert calls == [2], "2D mask must reach the varlen path"
     assert out is q
