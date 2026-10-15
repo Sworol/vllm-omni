@@ -982,6 +982,17 @@ def make_server_tree_kill_fault_injector(
     return _inject
 
 
+def _server_is_single_process_uniproc(server: Any) -> bool:
+    """True when the server tree holds only the root process (UniProc inline worker).
+
+    The UniProc executor runs the diffusion worker inside the API-server process,
+    so there is no dedicated worker process to kill; killing the root would take
+    the whole server down. Multi-process deployments (``mp``/``ray``) spawn worker
+    subprocesses as descendants of the root.
+    """
+    return len(_list_server_process_tree(server)) <= 1
+
+
 def make_process_kill_fault_injector(
     *,
     grep_patterns: str | Sequence[str],
@@ -990,6 +1001,11 @@ def make_process_kill_fault_injector(
     post_kill_wait_seconds: float = 0.0,
 ) -> FaultInjector:
     """Build a post-ready injector that kills processes matched by ordered ``grep_patterns``.
+
+    The worker-kill scenario needs a dedicated worker process: when the server
+    tree holds only the root (UniProc / single process), the injector skips
+    unconditionally — there is no worker to kill, and matching the serving
+    process would tear the whole server down.
 
     Matching is tried in two phases per pattern (first hit wins):
 
@@ -1012,6 +1028,11 @@ def make_process_kill_fault_injector(
 
     def _inject(server: Any) -> None:
         _log_server_process_tree(server)
+        if _server_is_single_process_uniproc(server):
+            pytest.skip(
+                "worker-kill scenario invalid: UniProc single-process deployment has no "
+                "dedicated worker process to kill"
+            )
         server_tree = set(_list_server_process_tree(server))
         if not server_tree:
             logger.warning(
